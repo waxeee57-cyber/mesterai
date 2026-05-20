@@ -5,6 +5,8 @@ import type {
   NavTransactionStatus,
 } from './types';
 import { createDecipheriv } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
+import { URL } from 'node:url';
 import {
   aes128ecb,
   crc32,
@@ -58,23 +60,45 @@ function buildHeaderAndUser(
   </common:user>`;
 }
 
-async function postXml(url: string, body: string): Promise<string> {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/xml',
-      Accept: 'application/xml',
-    },
-    body,
+// Uses node:https instead of fetch — undici (fetch) validates response headers
+// against ISO-8859-1 and throws on characters like ő/ű (U+0151/U+0171) that
+// the NAV API returns in its error response headers.
+function postXml(url: string, body: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const bodyBuf = Buffer.from(body, 'utf8');
+
+    const req = httpsRequest(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || 443,
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/xml; charset=UTF-8',
+          Accept: 'application/xml',
+          'Content-Length': bodyBuf.length,
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          if ((res.statusCode ?? 200) >= 400) {
+            reject(new Error(`NAV API error ${res.statusCode}: ${text}`));
+          } else {
+            resolve(text);
+          }
+        });
+        res.on('error', reject);
+      },
+    );
+
+    req.on('error', reject);
+    req.write(bodyBuf);
+    req.end();
   });
-
-  const text = await response.text();
-
-  if (response.status >= 400) {
-    throw new Error(`NAV API error ${response.status}: ${text}`);
-  }
-
-  return text;
 }
 
 export async function tokenExchange(creds: NavCredentials): Promise<NavTokenResponse> {
