@@ -2,6 +2,5 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "regions": ["fra1"],
-  "env": {}
+  "regions": ["fra1"]
 }
