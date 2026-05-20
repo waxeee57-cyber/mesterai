@@ -12,7 +12,14 @@ export type Master = {
   tax_type: string | null;
   address: string | null;
   city: string | null;
+  bank_account: string | null;
+  subscription_tier: string | null;
+  subscription_expires_at: string | null;
+  trial_expires_at: string | null;
+  onboarded: boolean | null;
 };
+
+const SELECT_FIELDS = 'id, auth_id, name, trade, phone, email, company_name, tax_number, tax_type, address, city, bank_account, subscription_tier, subscription_expires_at, trial_expires_at, onboarded';
 
 export async function getMaster(): Promise<Master | null> {
   const supabase = await createClient();
@@ -21,7 +28,7 @@ export async function getMaster(): Promise<Master | null> {
 
   const { data } = await supabase
     .from('masters')
-    .select('id, auth_id, name, trade, phone, email, company_name, tax_number, tax_type, address, city')
+    .select(SELECT_FIELDS)
     .eq('auth_id', user.id)
     .single();
 
@@ -35,7 +42,7 @@ export async function getOrCreateMaster(): Promise<Master | null> {
 
   const { data: existing } = await supabase
     .from('masters')
-    .select('id, auth_id, name, trade, phone, email, company_name, tax_number, tax_type, address, city')
+    .select(SELECT_FIELDS)
     .eq('auth_id', user.id)
     .single();
 
@@ -48,8 +55,9 @@ export async function getOrCreateMaster(): Promise<Master | null> {
       name: user.email?.split('@')[0] ?? 'Mesterember',
       trade: 'általános',
       email: user.email,
+      onboarded: false,
     })
-    .select('id, auth_id, name, trade, phone, email, company_name, tax_number, tax_type, address, city')
+    .select(SELECT_FIELDS)
     .single();
 
   return created ?? null;

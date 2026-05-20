@@ -1,28 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+export const runtime = 'nodejs';
 
 interface RouteParams { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
-  // HTML-based PDF that browsers can print
-  const htmlContent = generateInvoiceHtml(id);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new NextResponse('Unauthorized', { status: 401 });
 
-  return new NextResponse(htmlContent, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'X-Invoice-Id': id,
-    },
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('*, clients(name, tax_number, address, phone, email), masters(name, company_name, tax_number, tax_type, address, bank_account, phone), invoice_items(*)')
+    .eq('id', id)
+    .single();
+
+  if (!invoice) return new NextResponse('Not found', { status: 404 });
+
+  const html = buildInvoiceHtml(invoice);
+
+  return new NextResponse(html, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }
 
-function generateInvoiceHtml(invoiceId: string): string {
+function fmt(n: number) {
+  return Math.round(n).toLocaleString('hu-HU') + ' Ft';
+}
+function fmtDate(s: string | null) {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('hu-HU');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildInvoiceHtml(inv: any): string {
+  const master = inv.masters ?? {};
+  const client = inv.clients ?? {};
+  const items: Array<{ description: string; quantity: number; unit: string; unit_price: number; vat_rate: number; total_net: number; total_gross: number }> = inv.invoice_items ?? [];
+  const isAAM = master.tax_type === 'alanyi_mentes' || master.tax_type === 'kata';
+
+  const payMethodLabel: Record<string, string> = { transfer: 'Átutalás', cash: 'Készpénz', card: 'Bankkártya' };
+
+  const itemsRows = items.map(item => `
+    <tr>
+      <td>${escHtml(item.description)}</td>
+      <td style="text-align:center">${item.quantity}</td>
+      <td style="text-align:center">${escHtml(item.unit)}</td>
+      <td style="text-align:right">${fmt(item.unit_price)}</td>
+      <td style="text-align:center">${isAAM ? 'AAM' : item.vat_rate + '%'}</td>
+      <td style="text-align:right">${fmt(item.total_gross)}</td>
+    </tr>`).join('');
+
   return `<!DOCTYPE html>
 <html lang="hu">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Számla</title>
+  <title>Számla ${escHtml(inv.invoice_number)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 40px; }
@@ -31,7 +68,7 @@ function generateInvoiceHtml(invoiceId: string): string {
     .logo-icon { width: 44px; height: 44px; background: #F97316; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 20px; }
     .logo-text { font-size: 22px; font-weight: 900; }
     .invoice-title { font-size: 28px; font-weight: 900; text-align: right; }
-    .invoice-number { font-size: 14px; color: #666; }
+    .invoice-number { font-size: 14px; color: #666; text-align: right; }
     .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 32px; padding: 24px; background: #f9f9f9; border-radius: 8px; }
     .party-label { font-size: 10px; font-weight: 700; color: #F97316; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
     .party-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
@@ -51,11 +88,9 @@ function generateInvoiceHtml(invoiceId: string): string {
     .total-row.gross { font-size: 18px; font-weight: 900; color: #F97316; border-top: 2px solid #F97316; padding-top: 12px; border-bottom: none; }
     .notes { padding: 16px; background: #f9f9f9; border-radius: 6px; margin-bottom: 24px; }
     .notes-label { font-size: 10px; font-weight: 700; color: #666; text-transform: uppercase; margin-bottom: 6px; }
-    .footer { text-align: center; color: #aaa; font-size: 10px; border-top: 1px solid #e5e5e5; padding-top: 16px; }
-    @media print {
-      body { padding: 20px; }
-      button { display: none !important; }
-    }
+    .footer { text-align: center; color: #aaa; font-size: 10px; border-top: 1px solid #e5e5e5; padding-top: 16px; margin-top: 24px; }
+    .print-btn { margin-top: 16px; padding: 8px 20px; background: #F97316; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 13px; }
+    @media print { .print-btn { display: none !important; } body { padding: 20px; } }
   </style>
 </head>
 <body>
@@ -64,42 +99,45 @@ function generateInvoiceHtml(invoiceId: string): string {
       <div class="logo-icon">M</div>
       <div>
         <div class="logo-text">MesterAI</div>
-        <div style="font-size: 11px; color: #666;">mesterai.hu</div>
+        <div style="font-size:11px;color:#666">mesterai.hu</div>
       </div>
     </div>
     <div>
       <div class="invoice-title">SZÁMLA</div>
-      <div class="invoice-number" id="invoice-number">Betöltés...</div>
+      <div class="invoice-number">${escHtml(inv.invoice_number)}</div>
     </div>
   </div>
 
   <div class="parties">
     <div>
       <div class="party-label">Eladó</div>
-      <div class="party-name" id="seller-name">—</div>
-      <div class="party-detail" id="seller-tax">—</div>
-      <div class="party-detail" id="seller-address">—</div>
+      <div class="party-name">${escHtml(master.company_name ?? master.name ?? '—')}</div>
+      ${master.tax_number ? `<div class="party-detail">Adószám: ${escHtml(master.tax_number)}</div>` : ''}
+      ${master.address ? `<div class="party-detail">${escHtml(master.address)}</div>` : ''}
+      ${master.bank_account ? `<div class="party-detail">Bankszámla: ${escHtml(master.bank_account)}</div>` : ''}
+      ${master.phone ? `<div class="party-detail">Tel: ${escHtml(master.phone)}</div>` : ''}
     </div>
     <div>
       <div class="party-label">Vevő</div>
-      <div class="party-name" id="buyer-name">—</div>
-      <div class="party-detail" id="buyer-tax">—</div>
-      <div class="party-detail" id="buyer-address">—</div>
+      <div class="party-name">${escHtml(client.name ?? '—')}</div>
+      ${client.tax_number ? `<div class="party-detail">Adószám: ${escHtml(client.tax_number)}</div>` : ''}
+      ${client.address ? `<div class="party-detail">${escHtml(client.address)}</div>` : ''}
+      ${client.phone ? `<div class="party-detail">Tel: ${escHtml(client.phone)}</div>` : ''}
     </div>
   </div>
 
   <div class="meta">
     <div class="meta-item">
       <div class="meta-label">Kiállítás dátuma</div>
-      <div class="meta-value" id="issue-date">—</div>
+      <div class="meta-value">${fmtDate(inv.issue_date)}</div>
     </div>
     <div class="meta-item">
       <div class="meta-label">Fizetési határidő</div>
-      <div class="meta-value" id="due-date">—</div>
+      <div class="meta-value">${fmtDate(inv.due_date)}</div>
     </div>
     <div class="meta-item">
       <div class="meta-label">Fizetési mód</div>
-      <div class="meta-value" id="payment-method">—</div>
+      <div class="meta-value">${escHtml(payMethodLabel[inv.payment_method] ?? inv.payment_method ?? '—')}</div>
     </div>
   </div>
 
@@ -114,33 +152,34 @@ function generateInvoiceHtml(invoiceId: string): string {
         <th style="text-align:right">Összeg</th>
       </tr>
     </thead>
-    <tbody id="items">
-      <tr><td colspan="6" style="text-align:center;color:#aaa;padding:24px">Betöltés...</td></tr>
+    <tbody>
+      ${itemsRows || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:24px">Nincs tétel</td></tr>'}
     </tbody>
   </table>
 
   <div class="totals">
     <div class="totals-box">
-      <div class="total-row"><span>Nettó összeg</span><span id="total-net">—</span></div>
-      <div class="total-row"><span>ÁFA</span><span id="total-vat">—</span></div>
-      <div class="total-row gross"><span>Bruttó összesen</span><span id="total-gross">—</span></div>
+      <div class="total-row"><span>Nettó összeg</span><span>${fmt(inv.total_net ?? 0)}</span></div>
+      ${isAAM ? '' : `<div class="total-row"><span>ÁFA</span><span>${fmt((inv.total_gross ?? 0) - (inv.total_net ?? 0))}</span></div>`}
+      <div class="total-row gross"><span>Bruttó összesen</span><span>${fmt(inv.total_gross ?? 0)}</span></div>
     </div>
   </div>
 
-  <div id="tax-note" style="display:none" class="notes">
-    <div class="notes-label">Megjegyzés</div>
-    <div>Alanyi adómentes az Áfa tv. 187. § (2) bek. alapján.</div>
-  </div>
+  ${isAAM ? '<div class="notes"><div class="notes-label">Megjegyzés</div><div>Alanyi adómentes az Áfa tv. 187. § (2) bek. alapján.</div></div>' : ''}
+  ${inv.notes ? `<div class="notes"><div class="notes-label">Megjegyzés</div><div>${escHtml(inv.notes)}</div></div>` : ''}
 
   <div class="footer">
-    <p>Generálva: MesterAI · mesterai.hu · Számlaszám: ${invoiceId}</p>
-    <button onclick="window.print()" style="margin-top:12px;padding:8px 20px;background:#F97316;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700">🖨️ Nyomtatás / PDF mentés</button>
+    <p>Generálva: MesterAI · mesterai.hu</p>
+    <button class="print-btn" onclick="window.print()">🖨️ Nyomtatás / PDF mentés</button>
   </div>
-
-  <script>
-    // In production this would fetch from Supabase
-    document.getElementById('invoice-number').textContent = 'Számla #${invoiceId}';
-  </script>
 </body>
 </html>`;
+}
+
+function escHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
