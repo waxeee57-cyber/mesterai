@@ -19,11 +19,23 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
-
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
   const isProtected = pathname.startsWith('/dashboard');
+
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // getUser() can throw when undici rejects non-ASCII response headers from
+    // Supabase. Treat as unauthenticated — protected routes redirect to /login,
+    // auth pages remain accessible so the user can actually log in.
+    if (isProtected) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    return supabaseResponse;
+  }
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url));
