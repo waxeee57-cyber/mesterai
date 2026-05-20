@@ -22,6 +22,8 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
+      console.log('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log('KEY length:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       router.push('/dashboard');
