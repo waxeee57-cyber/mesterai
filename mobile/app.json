@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "MesterAI",
+    "slug": "mesterai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F97316"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "hu.mesterai.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F97316"
+      },
+      "package": "hu.mesterai.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        { "cameraPermission": "Hozzáférés szükséges a fotókészítéshez" }
+      ],
+      [
+        "expo-image-picker",
+        { "photosPermission": "Hozzáférés szükséges a fotók feltöltéséhez" }
+      ],
+      [
+        "expo-notifications",
+        { "icon": "./assets/notification-icon.png", "color": "#F97316" }
+      ]
+    ],
+    "scheme": "mesterai",
+    "extra": {
+      "eas": { "projectId": "mesterai-hu" }
+    }
+  }
+}

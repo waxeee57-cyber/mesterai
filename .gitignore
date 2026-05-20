@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.expo/
+.next/
+
+# Environment
+.env
+.env.local
+.env.production
+*.env
+
+# Build
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Expo
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# Supabase
+supabase/.temp/
