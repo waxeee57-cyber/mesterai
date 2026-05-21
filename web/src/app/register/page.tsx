@@ -23,13 +23,20 @@ export default function RegisterPage() {
     if (password.length < 6) { setError('A jelszó legalább 6 karakter legyen!'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: `${window.location.origin}/dashboard` },
       });
       if (error) throw error;
-      setSuccess(true);
+      if (data.session) {
+        // Email confirmation is OFF — session issued immediately, go straight in
+        router.push('/dashboard');
+        router.refresh();
+      } else {
+        // Email confirmation is ON — user must click the link first
+        setSuccess(true);
+      }
     } catch (err: any) {
       setError(err.message ?? 'Regisztráció sikertelen');
     } finally {
