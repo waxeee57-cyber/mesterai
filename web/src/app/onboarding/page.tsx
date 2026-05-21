@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TaxType = 'afa' | 'kata' | 'alanyi';
+// These values MUST match what settings/page.tsx and the DB use
+type TaxType = 'afa_kotes' | 'kata' | 'alanyi_mentes';
 
 const TRADES = [
   'Villanyszerelő',
@@ -23,9 +24,9 @@ const TRADES = [
 ];
 
 const TAX_TYPES: { id: TaxType; title: string; desc: string }[] = [
-  { id: 'afa', title: 'ÁFA körös', desc: 'Általános ÁFA alany, 27% ÁFA' },
+  { id: 'afa_kotes', title: 'ÁFA körös', desc: 'Általános ÁFA alany, 27% ÁFA' },
   { id: 'kata', title: 'KATA', desc: 'Kisadózó, átalányadó' },
-  { id: 'alanyi', title: 'Alanyi mentes', desc: 'Évi 12 MFt alatt, AAM jelzés' },
+  { id: 'alanyi_mentes', title: 'Alanyi mentes', desc: 'Évi 12 MFt alatt, AAM jelzés' },
 ];
 
 // ─── Step dot indicator ───────────────────────────────────────────────────────
@@ -72,7 +73,7 @@ export default function OnboardingPage() {
   const [trade, setTrade] = useState(TRADES[0]);
 
   // Step 3 — tax type
-  const [taxType, setTaxType] = useState<TaxType>('afa');
+  const [taxType, setTaxType] = useState<TaxType>('afa_kotes');
 
   // Step 4 — billing data
   const [taxNumber, setTaxNumber] = useState('');
@@ -112,46 +113,64 @@ export default function OnboardingPage() {
       if (!session) throw new Error('Nincs bejelentkezett felhasználó');
       const user = session.user;
 
-      // Upsert master
-      const { error: masterErr } = await supabase
-        .from('masters')
-        .upsert(
-          {
-            auth_id: user.id,
-            name: name.trim() || (user.email?.split('@')[0] ?? 'Mesterember'),
-            trade,
-            tax_type: taxType,
-            tax_number: taxNumber.trim() || null,
-            bank_account: bankAccount.trim() || null,
-            address: address.trim() || null,
-            email: user.email,
-            onboarded: true,
-          },
-          { onConflict: 'auth_id' }
-        );
+      const masterData = {
+        auth_id: user.id,
+        name: name.trim() || (user.email?.split('@')[0] ?? 'Mesterember'),
+        trade,
+        tax_type: taxType,
+        tax_number: taxNumber.trim() || null,
+        bank_account: bankAccount.trim() || null,
+        address: address.trim() || null,
+        email: user.email,
+        onboarded: true,
+      };
 
-      if (masterErr) throw masterErr;
+      // Check if master already exists — use UPDATE if yes, INSERT if no
+      const { data: existing } = await supabase
+        .from('masters')
+        .select('id')
+        .eq('auth_id', user.id)
+        .single();
+
+      let masterErr;
+      let masterId: string | null = existing?.id ?? null;
+
+      if (existing) {
+        const { error } = await supabase
+          .from('masters')
+          .update(masterData)
+          .eq('auth_id', user.id);
+        masterErr = error;
+      } else {
+        const { data: created, error } = await supabase
+          .from('masters')
+          .insert(masterData)
+          .select('id')
+          .single();
+        masterErr = error;
+        masterId = created?.id ?? null;
+      }
+
+      if (masterErr) {
+        throw new Error(`Masters mentési hiba: ${masterErr.message} (code: ${masterErr.code})`);
+      }
 
       // Create first client if provided
-      if (!skipClient && clientName.trim()) {
-        const { data: master } = await supabase
-          .from('masters')
-          .select('id')
-          .eq('auth_id', user.id)
-          .single();
-
-        if (master) {
-          await supabase.from('clients').insert({
-            master_id: master.id,
-            name: clientName.trim(),
-            phone: clientPhone.trim() || null,
-          });
+      if (!skipClient && clientName.trim() && masterId) {
+        const { error: clientErr } = await supabase.from('clients').insert({
+          master_id: masterId,
+          name: clientName.trim(),
+          phone: clientPhone.trim() || null,
+        });
+        if (clientErr) {
+          // Non-fatal: client creation failure doesn't block onboarding
+          console.error('Client creation failed:', clientErr.message);
         }
       }
 
       router.push('/dashboard');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Hiba történt');
+      setError(err instanceof Error ? err.message : 'Ismeretlen hiba történt');
     } finally {
       setSaving(false);
     }
