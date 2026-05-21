@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -16,6 +16,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // If already logged in and onboarded, skip straight to dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      supabase.from('masters').select('onboarded').eq('auth_id', session.user.id).single()
+        .then(({ data }) => {
+          if (data?.onboarded) router.replace('/dashboard');
+        });
+    });
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

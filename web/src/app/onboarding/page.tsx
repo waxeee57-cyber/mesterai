@@ -165,9 +165,24 @@ export default function OnboardingPage() {
     );
   }
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
   return (
     <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Logout escape hatch */}
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="text-xs text-[#525252] hover:text-[#A3A3A3] transition-colors"
+          >
+            Kijelentkezés
+          </button>
+        </div>
         <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-card p-8">
           <StepDots current={step} total={5} />
 
