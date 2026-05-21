@@ -131,17 +131,24 @@ export default function NewInvoicePage() {
 
       // Insert items
       if (items.some(i => i.description.trim())) {
-        const rows = items.filter(i => i.description.trim()).map((i, idx) => ({
-          invoice_id: inv!.id,
-          master_id: masterId,
-          description: i.description.trim(),
-          quantity: i.quantity,
-          unit: i.unit,
-          unit_price: i.unit_price,
-          vat_rate: i.vat_rate,
-          sort_order: idx,
-        }));
-        await supabase.from('invoice_items').insert(rows);
+        const rows = items.filter(i => i.description.trim()).map((i, idx) => {
+          const lineNet = i.quantity * i.unit_price;
+          const lineGross = Math.round(lineNet * (1 + i.vat_rate / 100));
+          return {
+            invoice_id: inv!.id,
+            master_id: masterId,
+            description: i.description.trim(),
+            quantity: i.quantity,
+            unit: i.unit,
+            unit_price: i.unit_price,
+            vat_rate: i.vat_rate,
+            total_net: Math.round(lineNet),
+            total_gross: lineGross,
+            sort_order: idx,
+          };
+        });
+        const { error: itemErr } = await supabase.from('invoice_items').insert(rows);
+        if (itemErr) throw itemErr;
       }
 
       // Mark job as invoiced

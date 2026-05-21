@@ -176,8 +176,9 @@ export default function NewQuotePage() {
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push('/login'); return; }
+      const user = session.user;
 
       let { data: master } = await supabase
         .from('masters')
@@ -232,7 +233,7 @@ export default function NewQuotePage() {
 
     try {
       const quoteNumber = generateQuoteNumber();
-      const { error: err } = await supabase.from('quotes').insert({
+      const { data: quote, error: err } = await supabase.from('quotes').insert({
         master_id: masterId,
         client_id: clientId || null,
         quote_number: quoteNumber,
@@ -242,8 +243,33 @@ export default function NewQuotePage() {
         total_net: Math.round(totalNet),
         total_vat: Math.round(totalVat),
         total_gross: Math.round(totalGross),
-      });
+      }).select('id').single();
       if (err) throw err;
+
+      const validItems = items.filter((item) => item.description.trim());
+      if (validItems.length > 0) {
+        const itemRows = validItems.map((item, idx) => {
+          const qty = parseFloat(item.qty) || 0;
+          const price = parseFloat(item.unitPrice) || 0;
+          const net = qty * price;
+          const gross = Math.round(net * (1 + item.vatRate / 100));
+          return {
+            quote_id: quote!.id,
+            master_id: masterId,
+            description: item.description.trim(),
+            quantity: qty,
+            unit: item.unit,
+            unit_price: price,
+            vat_rate: item.vatRate,
+            total_net: Math.round(net),
+            total_gross: gross,
+            sort_order: idx,
+          };
+        });
+        const { error: itemErr } = await supabase.from('quote_items').insert(itemRows);
+        if (itemErr) throw itemErr;
+      }
+
       router.push('/dashboard/quotes');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Mentés sikertelen');

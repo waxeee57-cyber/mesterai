@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 export default function NewJobPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const presetClientId = searchParams.get('clientId');
   const supabase = createClient();
 
   const [masterId, setMasterId] = useState<string | null>(null);
@@ -42,6 +44,17 @@ export default function NewJobPage() {
       }
 
       setMasterId(master?.id ?? null);
+
+      if (presetClientId && master) {
+        const { data: cl } = await supabase
+          .from('clients')
+          .select('name')
+          .eq('id', presetClientId)
+          .eq('master_id', master.id)
+          .single();
+        if (cl) setClientName(cl.name);
+      }
+
       setLoading(false);
     }
     init();

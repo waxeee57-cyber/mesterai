@@ -11,7 +11,6 @@ export type Master = {
   tax_number: string | null;
   tax_type: string | null;
   address: string | null;
-  city: string | null;
   bank_account: string | null;
   subscription_tier: string | null;
   subscription_expires_at: string | null;
@@ -19,7 +18,7 @@ export type Master = {
   onboarded: boolean | null;
 };
 
-const SELECT_FIELDS = 'id, auth_id, name, trade, phone, email, company_name, tax_number, tax_type, address, city, bank_account, subscription_tier, subscription_expires_at, trial_expires_at, onboarded';
+const SELECT_FIELDS = 'id, auth_id, name, trade, phone, email, company_name, tax_number, tax_type, address, bank_account, subscription_tier, subscription_expires_at, trial_expires_at, onboarded';
 
 export async function getMaster(): Promise<Master | null> {
   const supabase = await createClient();
