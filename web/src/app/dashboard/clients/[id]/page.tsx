@@ -14,8 +14,8 @@ interface ClientRecord {
   phone: string | null;
   email: string | null;
   address: string | null;
-  jobs_count: number;
-  total_revenue: number;
+  jobs_count?: number;
+  total_revenue?: number;
 }
 
 interface JobRow {
@@ -101,8 +101,9 @@ export default function ClientDetailPage() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
 
   const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.push('/login'); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.push('/login'); return; }
+    const user = session.user;
 
     const { data: master } = await supabase
       .from('masters')
@@ -185,9 +186,9 @@ export default function ClientDetailPage() {
           <div>
             <h1 className="text-2xl font-black">{client.name}</h1>
             <p className="text-[#A3A3A3] text-sm mt-1">
-              {client.jobs_count} munka
-              {client.total_revenue > 0 && (
-                <span> · <span className="text-accent font-semibold">{fmtFt(client.total_revenue)} bevétel</span></span>
+              {client.jobs_count ?? 0} munka
+              {(client.total_revenue ?? 0) > 0 && (
+                <span> · <span className="text-accent font-semibold">{fmtFt(client.total_revenue!)} bevétel</span></span>
               )}
             </p>
           </div>

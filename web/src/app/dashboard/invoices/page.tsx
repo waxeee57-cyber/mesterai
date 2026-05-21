@@ -44,8 +44,9 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const user = session.user;
       let { data: master } = await supabase.from('masters').select('id').eq('auth_id', user.id).single();
       if (!master) { const { data: c } = await supabase.from('masters').insert({ auth_id: user.id, name: user.email!.split('@')[0], trade: 'általános', email: user.email }).select('id').single(); master = c; }
       if (!master) return;

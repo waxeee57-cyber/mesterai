@@ -31,8 +31,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const user = session.user;
       let { data: master } = await supabase
         .from('masters')
         .select('id, name, phone, trade, company_name, tax_number, tax_type, address, bank_account, nav_username')

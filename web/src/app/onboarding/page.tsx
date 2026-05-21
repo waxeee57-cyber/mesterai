@@ -86,8 +86,9 @@ export default function OnboardingPage() {
   // Auth guard + onboarded redirect
   useEffect(() => {
     async function check() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push('/login'); return; }
+      const user = session.user;
 
       const { data: master } = await supabase
         .from('masters')
@@ -107,8 +108,9 @@ export default function OnboardingPage() {
     setError('');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Nincs bejelentkezett felhasználó');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Nincs bejelentkezett felhasználó');
+      const user = session.user;
 
       // Upsert master
       const { error: masterErr } = await supabase

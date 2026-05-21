@@ -22,8 +22,9 @@ export default function NewJobPage() {
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push('/login'); return; }
+      const user = session.user;
 
       let { data: master } = await supabase
         .from('masters')

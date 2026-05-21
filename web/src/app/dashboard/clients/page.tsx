@@ -9,8 +9,8 @@ type Client = {
   name: string;
   phone: string | null;
   email: string | null;
-  jobs_count: number;
-  total_revenue: number;
+  jobs_count?: number;
+  total_revenue?: number;
 };
 
 export default function ClientsPage() {
@@ -21,12 +21,13 @@ export default function ClientsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const user = session.user;
       let { data: master } = await supabase.from('masters').select('id').eq('auth_id', user.id).single();
       if (!master) { const { data: c } = await supabase.from('masters').insert({ auth_id: user.id, name: user.email!.split('@')[0], trade: 'általános', email: user.email }).select('id').single(); master = c; }
       if (!master) return;
-      const { data } = await supabase.from('clients').select('id, name, phone, email, jobs_count, total_revenue').eq('master_id', master.id).order('name');
+      const { data } = await supabase.from('clients').select('id, name, phone, email').eq('master_id', master.id).order('name');
       setClients((data ?? []) as Client[]);
       setLoading(false);
     }
@@ -89,10 +90,10 @@ export default function ClientsPage() {
                 </div>
               </div>
               <div className="text-right ml-4 shrink-0">
-                <p className="text-xs text-[#525252]">{c.jobs_count} munka</p>
-                {c.total_revenue > 0 && (
+                <p className="text-xs text-[#525252]">{c.jobs_count ?? 0} munka</p>
+                {(c.total_revenue ?? 0) > 0 && (
                   <p className="text-sm font-semibold text-accent">
-                    {Math.round(c.total_revenue).toLocaleString('hu-HU')} Ft
+                    {Math.round(c.total_revenue!).toLocaleString('hu-HU')} Ft
                   </p>
                 )}
               </div>
