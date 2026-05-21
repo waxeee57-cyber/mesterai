@@ -23,19 +23,10 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
   const isProtected = pathname.startsWith('/dashboard');
 
-  let user = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // getUser() can throw when undici rejects non-ASCII response headers from
-    // Supabase. Treat as unauthenticated — protected routes redirect to /login,
-    // auth pages remain accessible so the user can actually log in.
-    if (isProtected) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-    return supabaseResponse;
-  }
+  // getSession() reads the JWT from cookies locally — no network call, no undici
+  // non-ISO-8859-1 header error that getUser() triggers against Supabase Auth.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url));

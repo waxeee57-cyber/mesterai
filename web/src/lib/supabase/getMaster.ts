@@ -23,8 +23,9 @@ const SELECT_FIELDS = 'id, auth_id, name, trade, phone, email, company_name, tax
 
 export async function getMaster(): Promise<Master | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const user = session.user;
 
   const { data } = await supabase
     .from('masters')
@@ -37,8 +38,9 @@ export async function getMaster(): Promise<Master | null> {
 
 export async function getOrCreateMaster(): Promise<Master | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const user = session.user;
 
   const { data: existing } = await supabase
     .from('masters')
